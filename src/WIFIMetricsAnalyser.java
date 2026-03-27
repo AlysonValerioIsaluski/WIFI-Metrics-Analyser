@@ -95,10 +95,10 @@ public class WIFIMetricsAnalyser {
       }
 
       // Determina se a linha é um request ou reply, e calcula rtt e adiciona na soma
-      if (currentInfo.contains("request")) {
+      if (currentInfo.contains("ping) request")) {
         timePrevRequest = Double.parseDouble(currentTime);
       }
-      else if (currentInfo.contains("reply")) {
+      else if (currentInfo.contains("ping) reply")) {
         responseTime = Double.parseDouble(currentTime) - timePrevRequest;
         responseTimeSum += responseTime;
       }
