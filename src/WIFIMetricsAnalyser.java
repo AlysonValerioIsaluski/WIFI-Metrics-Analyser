@@ -25,110 +25,103 @@ public class WIFIMetricsAnalyser {
   private static void parseBuffer(String filePath, BufferedReader buffer) throws IOException {
     Path resultsPath = Path.of(filePath).resolveSibling("resultados_" + System.currentTimeMillis() + ".csv");
 
-    // Dados a serem extraídos das colunas (exceto os dados não utilizados)
-    String line, time = "0", protocol, frameLength = "", type;
-    // String number, source, destination, seq, ttl;
-
-    String[] csvResultsRow = new String[7];
-    String prevFrameLength = "", packetStartTime = "0";
+    String[] csvResultsRow = new String[8];
+    String line, prevFrameLength = "", packetStartTime = "0", prevTime = "0";
 
     boolean firstLoop = true;
-    double timePrevRequest = 0, responseTime = 0, responseTimeSum = 0;
+    double timePrevRequest = 0, responseTime, responseTimeSum = 0;
     int numPackets = 0;
 
     // Inicia leitura
     while ((line = buffer.readLine()) != null) {
 
       // Extrai colunas do buffer, e verifica se o número de colunas está correto
-      String[] columns = line.split(",");
-      if (columns.length != 9) continue;
+      // Regex que separa por vírgula, a não ser que a vírgula enteja dentro de aspas
+      String[] columns = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+      if (columns.length < 7) continue;
+
+      // Extrai dados das colunas (exceto os dados não utilizados)
+      String currentProtocol = columns[4].replace("\"", "").strip();
+
+      // Ignora linhas que não representam um procolo ICMP
+      if (!currentProtocol.equals("ICMP")) continue;
+
+      String currentTime = columns[1].replace("\"", "").strip();
+      String currentFrameLength = columns[5].replace("\"", "").strip();
+      String currentInfo = columns[6].replace("\"", "").strip();
 
       // No começo do leitor, salva o cabeçalho no arquivo com nome das colunas
       if (firstLoop) {
         csvResultsRow[0] = "fluxo_id";
         csvResultsRow[1] = "pacotes";
-        csvResultsRow[2] = "tamanho_pacote";;
-        csvResultsRow[3] = "ramanho_total";
+        csvResultsRow[2] = "tamanho_pacote";
+        csvResultsRow[3] = "tamanho_total";
         csvResultsRow[4] = "duracao_fluxo";
-        csvResultsRow[5] = "rrt_medio";
-        csvResultsRow[6] = "taxa";
+        csvResultsRow[5] = "rtt_medio";
+        csvResultsRow[6] = "rtt_ping";
+        csvResultsRow[7] = "taxa";
 
         Files.writeString(resultsPath, String.join(",", csvResultsRow) + "\n",
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND);
 
-        prevFrameLength = columns[5].replace("\"", "").strip();
+        prevFrameLength = currentFrameLength;
+        packetStartTime = currentTime;
+
         firstLoop = false;
       }
 
       // Salva dados no arquivo antes de processar o próximo fluxo
-      else if (!prevFrameLength.equals(frameLength)) {
-        Double influxSize = Double.parseDouble(frameLength) * numPackets;
-        Double influxDuration = Double.parseDouble(time) - Double.parseDouble(packetStartTime);
+      else if (!prevFrameLength.equals(currentFrameLength)) {
+        Double influxSize = Double.parseDouble(prevFrameLength) * numPackets;
+        Double influxDuration = Double.parseDouble(prevTime) - Double.parseDouble(packetStartTime);
 
-        csvResultsRow[0] = frameLength;
-        csvResultsRow[1] = String.valueOf(numPackets);
-        csvResultsRow[2] = frameLength;
-        csvResultsRow[3] = String.valueOf(influxSize);
-        csvResultsRow[4] = String.valueOf(influxDuration);
-        csvResultsRow[5] = String.valueOf(responseTimeSum / numPackets);
-        csvResultsRow[6] = String.valueOf(influxSize / influxDuration);
+        csvResultsRow[0] = prevFrameLength; // fluxo_id
+        csvResultsRow[1] = String.valueOf(numPackets); // pacotes
+        csvResultsRow[2] = prevFrameLength; // tamanho_pacote
+        csvResultsRow[3] = String.valueOf(influxSize); // tamanho_total
+        csvResultsRow[4] = String.valueOf(influxDuration); // duracao_fluxo
+        csvResultsRow[5] = String.valueOf(responseTimeSum / (int) (numPackets / 2)); // rtt_medio
+        csvResultsRow[6] = ""; // rtt_ping deve ser preenchido manualmente
+        csvResultsRow[7] = String.valueOf((influxSize * 8) / influxDuration); // taxa
 
         Files.writeString(resultsPath, String.join(",", csvResultsRow) + "\n",
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND);
 
+        // Reseta variáveis para o novo fluxo
         numPackets = 0;
-        prevFrameLength = frameLength;
+        responseTimeSum = 0;
+        packetStartTime = currentTime;
+        prevFrameLength = currentFrameLength;
       }
 
-      else {
-        prevFrameLength = frameLength;
+      // Determina se a linha é um request ou reply, e calcula rtt e adiciona na soma
+      if (currentInfo.contains("request")) {
+        timePrevRequest = Double.parseDouble(currentTime);
       }
-
-      // Extrai dados das colunas (exceto os dados não utilizados)
-      time = columns[1].replace("\"", "").strip();
-      protocol = columns[4].replace("\"", "").strip();
-      frameLength = columns[5].replace("\"", "").strip();
-      type = columns[6].replace("\"", "").strip();
-      // number = columns[0].replace("\"", "").strip();
-      // source = columns[2].replace("\"", "").strip();
-      // destination = columns[3].replace("\"", "").strip();
-      // seq = columns[7].replace("\"", "").strip();
-      // ttl = columns[8].replace("\"", "").strip();
-
-      // Ignora linhas que não representam um procolo ICMP
-      if (!protocol.equals("ICMP")) continue;
-
-      // Determina se a linha é um request ou reply, e calcula rrt e adiciona na soma
-      if (type.contains("request")) {
-        timePrevRequest = Double.parseDouble(time);
-      }
-      else if (type.contains("reply")) {
-        responseTime = Double.parseDouble(time) - timePrevRequest;
+      else if (currentInfo.contains("reply")) {
+        responseTime = Double.parseDouble(currentTime) - timePrevRequest;
         responseTimeSum += responseTime;
-      }
-      else continue;
-
-      if (numPackets == 0) {
-        packetStartTime = time;
       }
 
       numPackets++;
+      prevTime = currentTime;
     }
 
     // Salva últimos dados no arquivo
-    Double influxSize = Double.parseDouble(frameLength) * numPackets;
-    Double influxDuration = Double.parseDouble(time) - Double.parseDouble(packetStartTime);
+    Double influxSize = Double.parseDouble(prevFrameLength) * numPackets;
+    Double influxDuration = Double.parseDouble(prevTime) - Double.parseDouble(packetStartTime);
 
-    csvResultsRow[0] = frameLength;
-    csvResultsRow[1] = String.valueOf(numPackets);
-    csvResultsRow[2] = frameLength;
-    csvResultsRow[3] = String.valueOf(influxSize);
-    csvResultsRow[4] = String.valueOf(influxDuration);
-    csvResultsRow[5] = String.valueOf(responseTimeSum / numPackets);
-    csvResultsRow[6] = String.valueOf(influxSize / influxDuration);
+    csvResultsRow[0] = prevFrameLength; // fluxo_id
+    csvResultsRow[1] = String.valueOf(numPackets); // pacotes
+    csvResultsRow[2] = prevFrameLength; // tamanho_pacote
+    csvResultsRow[3] = String.valueOf(influxSize); // tamanho_total
+    csvResultsRow[4] = String.valueOf(influxDuration); // duracao_fluxo
+    csvResultsRow[5] = String.valueOf(responseTimeSum / (int) (numPackets / 2 )); // rtt_medio
+    csvResultsRow[6] = ""; // rtt_ping deve ser preenchido manualmente
+    csvResultsRow[7] = String.valueOf((influxSize * 8) / influxDuration); // taxa
 
     Files.writeString(resultsPath, String.join(",", csvResultsRow) + "\n",
             StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-    System.out.println("Arquivo CSV com resultados exportado com sucesso com o caminho:" + resultsPath + "!");
+    System.out.println("Arquivo CSV com resultados exportado com sucesso. Caminho:" + resultsPath + "!");
   }
 }
