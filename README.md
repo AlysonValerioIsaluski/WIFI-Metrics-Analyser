@@ -12,10 +12,10 @@ No external libraries or frameworks needed
 # Compiling
 in src directory:
 
-javac WIFIMetricsAnalyser.java
+`javac WIFIMetricsAnalyser.java`
 
 
 # Execution
 in src directory:
 
-java WIFIMetricsAnalyser.class wireshark-exported-csv-path
+`java WIFIMetricsAnalyser.class wireshark-exported-csv-path`
