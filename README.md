@@ -15,7 +15,7 @@ no diretório src:
 `javac WIFIMetricsAnalyser.java`
 
 
-# Execution
+# Execução
 no diretório src:
 
 `java WIFIMetricsAnalyser.class caminho-do-arquivo-csv-exportado-pelo-wireshark`
