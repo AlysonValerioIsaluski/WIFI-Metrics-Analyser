@@ -1,21 +1,21 @@
 # WIFI-Metrics-Analyser
-Java application that receives a csv file exported from wireshark with icmp filter, and extracts and processes data from request and reply pings, then exports a csv file containing: Number of packages per influx, Size of Influx Package, Total size of Packages in Influx, Influx Duration, Average of Influx Ping Response Time (rrt), Influx Throughput
+Aplicação de Java que recebe de entrada um arquivo csv exportado do wireshark com filtro icmp, e extrai e processa os dados dos pings "request" e "reply", e então exporta um arquivo csv contendo: Número de pacotes por fluxo, tamanho dos pacotes do fluxo, tamanho total dos pacotes do fluxo, duração do fluxo, tempo médio de resposta dos pings (RRT) e taxa de transmissão (throughput).
 
 
-# Dependencies
+# Dependências
 
 JDK 21
 
-No external libraries or frameworks needed
+Nenhuma biblioteca externa ou frameworks necessárias.
 
 
-# Compiling
-in src directory:
+# Compilação
+no diretório src:
 
 `javac WIFIMetricsAnalyser.java`
 
 
 # Execution
-in src directory:
+no diretório src:
 
-`java WIFIMetricsAnalyser.class wireshark-exported-csv-path`
+`java WIFIMetricsAnalyser.class caminho-do-arquivo-csv-exportado-pelo-wireshark`
